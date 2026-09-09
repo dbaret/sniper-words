@@ -259,6 +259,48 @@ canvas#game{
 #zoom-toggle.active{
   box-shadow:0 0 0 4px rgba(255,201,77,.6), 0 4px 10px rgba(0,0,0,.5);
 }
+
+/* power-ups */
+#power-bar{
+  position:absolute;
+  left:16px;bottom:16px;
+  display:flex;
+  gap:8px;
+  z-index:7;
+}
+.power-btn{
+  position:relative;
+  width:52px;height:52px;border-radius:14px;
+  border:2px solid var(--gold-dim);
+  background:rgba(20,20,30,.6);
+  backdrop-filter:blur(2px);
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;
+  cursor:pointer;
+  color:#fff;
+  opacity:.4;
+  transition:opacity .15s ease, box-shadow .15s ease;
+}
+.power-btn.ready{opacity:1;box-shadow:0 0 0 3px rgba(255,201,77,.4), 0 4px 10px rgba(0,0,0,.5);}
+.power-btn .p-count{
+  position:absolute;right:-5px;bottom:-5px;
+  background:var(--stripe-red);
+  color:#fff;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:11px;
+  border-radius:50%;min-width:18px;height:18px;padding:0 3px;
+  display:flex;align-items:center;justify-content:center;
+  border:2px solid var(--wood-dark);
+}
+#slowmo-indicator{
+  position:absolute;top:16px;right:16px;
+  background:linear-gradient(180deg, #6fa8e8, #3e6db8);
+  color:#fff;
+  padding:6px 12px;border-radius:12px;
+  font-weight:800;font-size:13px;
+  z-index:7;
+  display:flex;align-items:center;gap:5px;
+  box-shadow:0 4px 10px rgba(0,0,0,.4);
+}
+
 #pause-btn{
   position:absolute;left:16px;top:16px;
   width:38px;height:38px;border-radius:10px;
@@ -394,6 +436,8 @@ canvas#game{
 .big-start:active{transform:translateY(3px);box-shadow:0 2px 0 #1f6a3c;}
 
 .footer-row{display:flex;justify-content:space-between;align-items:center;margin-top:14px;flex-wrap:wrap;gap:8px;}
+.section-label{font-weight:800;font-size:11.5px;letter-spacing:.5px;color:#8a6a3a;text-transform:uppercase;margin:14px 0 6px;}
+.section-label:first-of-type{margin-top:2px;}
 .parents-link{
   background:none;border:none;color:#8a6a3a;font-weight:700;font-size:12.5px;
   text-decoration:underline;cursor:pointer;
@@ -516,6 +560,18 @@ canvas#game{
         <button id="pause-btn" title="Pause">⏸</button>
         <button id="mute-btn" title="Son">🔊</button>
         <div id="unlock-banner"></div>
+        <div id="slowmo-indicator" hidden>⏰ <span id="slowmo-time">0</span>s</div>
+        <div id="power-bar" hidden>
+          <button class="power-btn" id="power-horloge" data-power="horloge" title="Horloge — ralentit les mots (touche 1)">
+            <span class="p-icon">⏰</span><span class="p-count" id="count-horloge">0</span>
+          </button>
+          <button class="power-btn" id="power-bombe" data-power="bombe" title="Bombe — efface l'écran, sans perdre de point (touche 2)">
+            <span class="p-icon">💣</span><span class="p-count" id="count-bombe">0</span>
+          </button>
+          <button class="power-btn" id="power-chercheuse" data-power="chercheuse" title="Tête chercheuse — touche automatiquement le bon mot (touche 3)">
+            <span class="p-icon">🎯</span><span class="p-count" id="count-chercheuse">0</span>
+          </button>
+        </div>
         <div id="touch-controls">
           <button id="zoom-toggle" title="Viser (zoom)">🔭</button>
           <button id="fire-btn" title="Tirer">🎯</button>
@@ -525,12 +581,18 @@ canvas#game{
         <div class="overlay" id="overlay-setup">
           <div class="card">
             <h2>🎪 Choisis ton stand</h2>
-            <p class="sub">Sélectionne un décor, un mode de jeu, puis appuie sur « Commencer ».</p>
+            <p class="sub">Sélectionne un décor, un mode de jeu, une difficulté, puis appuie sur « Commencer ».</p>
 
+            <div class="section-label">Décor</div>
             <div class="theme-grid" id="theme-grid"></div>
 
+            <div class="section-label">Mode de jeu</div>
             <div class="mode-row" id="mode-row"></div>
 
+            <div class="section-label">Difficulté</div>
+            <div class="mode-row" id="difficulty-row"></div>
+
+            <div class="section-label">Arme équipée</div>
             <div class="weapon-row" id="weapon-row"></div>
 
             <button class="big-start" id="start-btn">🎯 Commencer</button>
@@ -625,6 +687,7 @@ canvas#game{
         <span>🖱️ Souris : viser</span>
         <span><kbd>Espace</kbd> tirer</span>
         <span id="hint-zoom" hidden><kbd>Maj</kbd> zoomer (sniper)</span>
+        <span><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> pouvoirs</span>
       </div>
       <div class="hints">
         <span id="version-tag">Fête foraine des mots</span>
@@ -667,6 +730,18 @@ const MODES = [
   {id:"agression", name:"Attaque",  icon:"🔥", desc:"Les mots foncent sur toi ! 3 vies, tire avant qu'ils n'arrivent."},
 ];
 const CHRONO_DURATIONS = [30,60,90];
+
+const DIFFICULTIES = [
+  {id:"debutant", name:"Débutant", icon:"🌱", desc:"Le mot à trouver est surligné d'une couleur différente."},
+  {id:"avance",   name:"Avancé",   icon:"🎓", desc:"Plus d'indice de couleur : tous les mots se ressemblent, il faut vraiment lire."},
+  {id:"expert",   name:"Expert",   icon:"🏆", desc:"Sans couleur, et les mots changent de police et de MAJUSCULE/minuscule."},
+];
+
+const POWERUPS = [
+  {id:"horloge",    name:"Horloge",         icon:"⏰", key:"1", desc:"Ralentit tous les mots quelques secondes."},
+  {id:"bombe",      name:"Bombe",           icon:"💣", key:"2", desc:"Fait exploser tous les mots à l'écran, sans perdre de point."},
+  {id:"chercheuse", name:"Tête chercheuse", icon:"🎯", key:"3", desc:"Le prochain tir touche automatiquement le bon mot."},
+];
 
 const WEAPONS = [
   {id:"revolver", name:"Revolver",     badge:"●", unlockAt:0,  radius:50, cooldown:420, zoom:false, desc:"Vise large, facile à prendre en main."},
@@ -823,10 +898,15 @@ const S = {
   chronoDuration:60,
   selectedWeaponId:"revolver",
   unlockedWeapons:["revolver"],
+  difficulty:"debutant",
 
   targets:[],
   particles:[],
   popups:[],
+  beams:[],
+  inventory:{horloge:0, bombe:0, chercheuse:0},
+  slowMoT:0,
+  bonusTimer:0,
 
   score:0,
   lives:3,
@@ -920,6 +1000,9 @@ window.addEventListener("keydown",(e)=>{
   } else if(e.key==="Escape"){
     if(S.screen==="playing") pauseGame();
     else if(S.screen==="paused") resumeGame();
+  } else if(["1","2","3"].indexOf(e.key)!==-1){
+    const p=POWERUPS[Number(e.key)-1];
+    if(p) activatePower(p.id);
   }
 });
 window.addEventListener("keyup",(e)=>{
@@ -932,6 +1015,10 @@ document.getElementById("zoom-toggle").addEventListener("pointerdown",(e)=>{
   e.preventDefault();
   S.zoomToggled=!S.zoomToggled;
   document.getElementById("zoom-toggle").classList.toggle("active", S.zoomToggled);
+});
+POWERUPS.forEach(p=>{
+  const btn=document.getElementById("power-"+p.id);
+  if(btn) btn.addEventListener("pointerdown",(e)=>{ e.preventDefault(); activatePower(p.id); });
 });
 
 /* ============================= SPAWNING / PATTERNS ============================= */
@@ -955,6 +1042,23 @@ function ensureCurrentWord(){
   }
 }
 
+function useColorHint(t){
+  return S.difficulty==="debutant" && t.isCorrect;
+}
+
+function applyWordStyle(t){
+  if(S.difficulty==="expert"){
+    const fonts=["'Baloo 2', sans-serif","'Nunito', sans-serif","'JetBrains Mono', monospace"];
+    t.font = choice(fonts);
+    t.caseMode = Math.random()<0.5 ? "upper" : "lower";
+    t.tilt = rand(-0.12,0.12);
+  } else {
+    t.font = "'Baloo 2', sans-serif";
+    t.caseMode = "lower";
+    t.tilt = 0;
+  }
+}
+
 function newTarget(themeId, mode, isCorrect){
   const t={
     id:uid(), theme:themeId, mode:mode,
@@ -967,6 +1071,7 @@ function newTarget(themeId, mode, isCorrect){
     // misc per-theme
     lane:0, base:0, freq:1, amp:0, phase:0,
   };
+  applyWordStyle(t);
 
   if(mode==="agression"){
     t.sx=rand(BOUND_L+40,BOUND_R-40);
@@ -1042,6 +1147,15 @@ function newTarget(themeId, mode, isCorrect){
       break;
     }
   }
+  return t;
+}
+
+function newBonusTarget(themeId, mode){
+  const t=newTarget(themeId, mode, false);
+  t.isBonus=true;
+  t.bonusKind=choice(POWERUPS.map(p=>p.id));
+  t.word="";
+  t.isCorrect=false;
   return t;
 }
 
@@ -1192,6 +1306,16 @@ function shoot(){
   }
   if(!best) return;
 
+  if(best.isBonus){
+    best.alive=false;
+    S.inventory[best.bonusKind] = (S.inventory[best.bonusKind]||0)+1;
+    SFX.correct();
+    spawnBurst(best.x,best.y,"#ffc94d",20);
+    spawnPopup(best.x,best.y-10,"🎁","#ffc94d");
+    updatePowerBar();
+    return;
+  }
+
   if(best.isCorrect){
     best.alive=false;
     S.score++;
@@ -1216,6 +1340,17 @@ function update(dt){
   const now=performance.now();
   if(S.shotFlashT>0) S.shotFlashT=Math.max(0,S.shotFlashT-dt);
   if(S.shakeT>0) S.shakeT=Math.max(0,S.shakeT-dt);
+  if(S.slowMoT>0) S.slowMoT=Math.max(0,S.slowMoT-dt);
+
+  const slowmoEl=document.getElementById("slowmo-indicator");
+  if(slowmoEl){
+    if(S.slowMoT>0 && S.screen==="playing"){
+      slowmoEl.hidden=false;
+      document.getElementById("slowmo-time").textContent=S.slowMoT.toFixed(1);
+    } else {
+      slowmoEl.hidden=true;
+    }
+  }
 
   if(S.screen==="playing"){
     S.elapsed+=dt;
@@ -1229,7 +1364,16 @@ function update(dt){
   const simulating = (S.screen==="playing") || (S.ambient && (S.screen==="setup"||S.screen==="admin"||S.screen==="gate"));
   if(simulating){
     spawnBatch();
-    for(const t of S.targets){ if(t.alive) updateTarget(t,dt,now); }
+    if(!S.ambient){
+      S.bonusTimer -= dt*1000;
+      const bonusAlive = S.targets.some(t=>t.alive && t.isBonus);
+      if(!bonusAlive && S.bonusTimer<=0 && S.targets.filter(t=>t.alive).length < maxConcurrentFor()+1){
+        S.targets.push(newBonusTarget(S.selectedTheme, S.selectedMode));
+        S.bonusTimer = rand(14000,22000);
+      }
+    }
+    const moveDt = (S.slowMoT>0 && !S.ambient) ? dt*0.35 : dt;
+    for(const t of S.targets){ if(t.alive) updateTarget(t,moveDt,now); }
     S.targets = S.targets.filter(t=>t.alive);
   }
 
@@ -1237,6 +1381,8 @@ function update(dt){
   S.particles = S.particles.filter(p=>p.t<p.life);
   for(const pu of S.popups){ pu.t+=dt; pu.y-=30*dt; }
   S.popups = S.popups.filter(pu=>pu.t<pu.life);
+  for(const b of S.beams){ b.t+=dt; }
+  S.beams = S.beams.filter(b=>b.t<b.life);
 }
 
 /* ============================= DRAW ============================= */
@@ -1325,22 +1471,49 @@ function drawBackground(ctx, themeId, t){
   ctx.closePath(); ctx.fill();
 }
 
-function drawLabel(ctx, x, y, text, opacity){
+function drawLabel(ctx, x, y, text, opacity, styleSrc){
+  const font = (styleSrc && styleSrc.font) || "'Baloo 2', sans-serif";
+  const tilt = (styleSrc && styleSrc.tilt) || 0;
+  const display = (styleSrc && styleSrc.caseMode==="upper") ? text.toUpperCase() : text;
   ctx.save();
   ctx.globalAlpha = opacity==null?1:opacity;
-  ctx.font="800 22px 'Baloo 2', sans-serif";
-  const w=ctx.measureText(text).width;
+  ctx.translate(x,y);
+  ctx.rotate(tilt);
+  ctx.font="800 22px "+font;
+  const w=ctx.measureText(display).width;
   const padX=12, padY=6, bw=w+padX*2, bh=30;
   ctx.fillStyle="rgba(253,243,223,.96)";
-  roundRect(ctx, x-bw/2, y-bh/2, bw, bh, 15);
+  roundRect(ctx, -bw/2, -bh/2, bw, bh, 15);
   ctx.fill();
   ctx.strokeStyle="rgba(42,22,8,.25)";
   ctx.lineWidth=2;
-  roundRect(ctx, x-bw/2, y-bh/2, bw, bh, 15);
+  roundRect(ctx, -bw/2, -bh/2, bw, bh, 15);
   ctx.stroke();
   ctx.fillStyle="#2a1608";
   ctx.textAlign="center"; ctx.textBaseline="middle";
-  ctx.fillText(text, x, y+1);
+  ctx.fillText(display, 0, 1);
+  ctx.restore();
+}
+
+function drawBonus(ctx, t){
+  const p = POWERUPS.find(p=>p.id===t.bonusKind);
+  const pulse = 1+0.12*Math.sin(performance.now()/220);
+  ctx.save();
+  ctx.translate(t.x,t.y);
+  ctx.scale(t.scale*pulse, t.scale*pulse);
+  ctx.globalAlpha = t.opacity==null?1:t.opacity;
+  const glow=ctx.createRadialGradient(0,0,2,0,0,34);
+  glow.addColorStop(0,"rgba(255,201,77,.9)");
+  glow.addColorStop(1,"rgba(255,201,77,0)");
+  ctx.fillStyle=glow;
+  ctx.beginPath(); ctx.arc(0,0,34,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle="#2a1608";
+  ctx.beginPath(); ctx.arc(0,0,22,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle="rgba(255,201,77,.9)"; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.arc(0,0,22,0,Math.PI*2); ctx.stroke();
+  ctx.font="20px sans-serif";
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText(p?p.icon:"★", 0, 1);
   ctx.restore();
 }
 function roundRect(ctx,x,y,w,h,r){
@@ -1362,7 +1535,7 @@ function drawSprite(ctx, t){
   switch(t.theme){
     case "ballons":{
       ctx.rotate(Math.sin((t.born)/500)*0.05);
-      const col = t.isCorrect? "#e8483a" : ["#4d9de0","#f2c84b","#7bd389","#c77dff"][ (t.id.charCodeAt(1)||0)%4 ];
+      const col = useColorHint(t)? "#e8483a" : ["#4d9de0","#f2c84b","#7bd389","#c77dff"][ (t.id.charCodeAt(1)||0)%4 ];
       ctx.fillStyle=col;
       ctx.beginPath(); ctx.ellipse(0,0,26,32,0,0,Math.PI*2); ctx.fill();
       ctx.fillStyle="rgba(255,255,255,.35)";
@@ -1374,7 +1547,7 @@ function drawSprite(ctx, t){
     case "voitures":{
       const dir = t.vx<0?-1:1;
       ctx.scale(dir,1);
-      ctx.fillStyle= t.isCorrect? "#e8483a" : ["#4d9de0","#f2c84b","#7bd389"][ (t.id.charCodeAt(1)||0)%3 ];
+      ctx.fillStyle= useColorHint(t)? "#e8483a" : ["#4d9de0","#f2c84b","#7bd389"][ (t.id.charCodeAt(1)||0)%3 ];
       roundRect(ctx,-38,-16,76,26,8); ctx.fill();
       roundRect(ctx,-20,-30,44,18,6); ctx.fill();
       ctx.fillStyle="rgba(255,255,255,.55)";
@@ -1384,7 +1557,7 @@ function drawSprite(ctx, t){
       break;
     }
     case "fusees":{
-      ctx.fillStyle= t.isCorrect? "#e8483a" : "#dfe6ef";
+      ctx.fillStyle= useColorHint(t)? "#e8483a" : "#dfe6ef";
       ctx.beginPath(); ctx.moveTo(0,-46); ctx.lineTo(16,-8); ctx.lineTo(-16,-8); ctx.closePath(); ctx.fill();
       roundRect(ctx,-14,-10,28,44,8); ctx.fill();
       ctx.fillStyle="#4d9de0";
@@ -1398,7 +1571,7 @@ function drawSprite(ctx, t){
     }
     case "avions":{
       ctx.rotate(t.rot);
-      ctx.fillStyle= t.isCorrect? "#e8483a" : "#dfe6ef";
+      ctx.fillStyle= useColorHint(t)? "#e8483a" : "#dfe6ef";
       ctx.beginPath(); ctx.moveTo(40,0); ctx.lineTo(-24,-8); ctx.lineTo(-14,0); ctx.lineTo(-24,8); ctx.closePath(); ctx.fill();
       ctx.beginPath(); ctx.moveTo(2,0); ctx.lineTo(-14,-26); ctx.lineTo(-6,-2); ctx.closePath(); ctx.fill();
       ctx.beginPath(); ctx.moveTo(2,0); ctx.lineTo(-14,26); ctx.lineTo(-6,2); ctx.closePath(); ctx.fill();
@@ -1407,7 +1580,7 @@ function drawSprite(ctx, t){
     case "poissons":{
       const dir = t.vx<0?-1:1;
       ctx.scale(dir,1);
-      ctx.fillStyle= t.isCorrect? "#e8483a" : ["#4d9de0","#f2c84b","#7bd389","#ff9770"][ (t.id.charCodeAt(1)||0)%4 ];
+      ctx.fillStyle= useColorHint(t)? "#e8483a" : ["#4d9de0","#f2c84b","#7bd389","#ff9770"][ (t.id.charCodeAt(1)||0)%4 ];
       ctx.beginPath(); ctx.ellipse(0,0,28,17,0,0,Math.PI*2); ctx.fill();
       ctx.beginPath(); ctx.moveTo(-26,0); ctx.lineTo(-42,-14); ctx.lineTo(-42,14); ctx.closePath(); ctx.fill();
       ctx.fillStyle="#fff";
@@ -1417,7 +1590,7 @@ function drawSprite(ctx, t){
       break;
     }
     case "fantomes":{
-      ctx.fillStyle= t.isCorrect? "rgba(232,72,58,.92)" : "rgba(255,255,255,.92)";
+      ctx.fillStyle= useColorHint(t)? "rgba(232,72,58,.92)" : "rgba(255,255,255,.92)";
       ctx.beginPath();
       ctx.arc(0,-4,24,Math.PI,0);
       ctx.lineTo(24,22);
@@ -1449,9 +1622,18 @@ function drawWorld(ctx, now){
   drawBackground(ctx, S.selectedTheme, now);
   for(const t of S.targets){
     if(!t.alive) continue;
+    if(t.isBonus){ drawBonus(ctx,t); continue; }
     drawSprite(ctx,t);
     const off = t.mode==="agression" ? labelOffset(t.theme)*Math.max(0.5,t.scale) : labelOffset(t.theme)*Math.max(0.7,t.scale);
-    drawLabel(ctx, t.x, t.y - off, t.word, t.opacity==null?1:t.opacity);
+    drawLabel(ctx, t.x, t.y - off, t.word, t.opacity==null?1:t.opacity, t);
+  }
+  for(const b of S.beams){
+    const a=Math.max(0,1-b.t/b.life);
+    ctx.save();
+    ctx.strokeStyle="rgba(255,201,77,"+(0.85*a)+")";
+    ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(b.x1,b.y1); ctx.lineTo(b.x2,b.y2); ctx.stroke();
+    ctx.restore();
   }
   for(const p of S.particles){
     ctx.globalAlpha=Math.max(0,1-p.t/p.life);
@@ -1466,6 +1648,10 @@ function drawWorld(ctx, now){
     ctx.textAlign="center";
     ctx.fillText(pu.text, pu.x, pu.y);
     ctx.globalAlpha=1;
+  }
+  if(S.slowMoT>0 && !S.ambient){
+    ctx.fillStyle="rgba(90,160,255,0.10)";
+    ctx.fillRect(0,0,LOGICAL_W,LOGICAL_H);
   }
 }
 
@@ -1583,10 +1769,62 @@ function updateWeaponChip(){
 }
 
 function setPlayChromeVisible(show){
-  ["hud","pause-btn","mute-btn","touch-controls"].forEach(id=>{
+  ["hud","pause-btn","mute-btn","touch-controls","power-bar"].forEach(id=>{
     document.getElementById(id).hidden = !show;
   });
-  if(show) updateWeaponChip();
+  if(show){ updateWeaponChip(); updatePowerBar(); }
+}
+
+function updatePowerBar(){
+  POWERUPS.forEach(p=>{
+    const n=S.inventory[p.id]||0;
+    const btn=document.getElementById("power-"+p.id);
+    const cnt=document.getElementById("count-"+p.id);
+    if(cnt) cnt.textContent=n;
+    if(btn) btn.classList.toggle("ready", n>0);
+  });
+}
+
+function activatePower(id){
+  if(S.screen!=="playing") return;
+  const n=S.inventory[id]||0;
+  if(n<=0) return;
+
+  if(id==="horloge"){
+    S.inventory.horloge--;
+    S.slowMoT=6;
+    showToast("⏰ Ralenti activé");
+    SFX.unlockWeapon();
+  } else if(id==="bombe"){
+    S.inventory.bombe--;
+    for(const t of S.targets){
+      if(t.alive && !t.isBonus){
+        spawnBurst(t.x,t.y,"#ffb14d",16);
+        t.alive=false;
+      }
+    }
+    S.shakeT=0.4;
+    S.wordPending=true;
+    advanceWord();
+    showToast("💣 Boum !");
+    SFX.lifeLost();
+  } else if(id==="chercheuse"){
+    const target=S.targets.find(t=>t.alive && t.isCorrect);
+    if(!target){ showToast("Pas de cible pour le moment"); return; }
+    S.inventory.chercheuse--;
+    S.beams.push({x1:S.crosshair.x,y1:S.crosshair.y,x2:target.x,y2:target.y,t:0,life:0.25});
+    target.alive=false;
+    S.score++;
+    G.config.progressScore=(G.config.progressScore||0)+1;
+    refreshUnlockedWeapons();
+    persistDebounced();
+    SFX.correct();
+    spawnBurst(target.x,target.y,"#5fd98a",18);
+    spawnPopup(target.x,target.y-10,"+1","#5fd98a");
+    advanceWord();
+    updateHudScore();
+  }
+  updatePowerBar();
 }
 
 function startGame(){
@@ -1604,6 +1842,10 @@ function startGame(){
   S.nextWordAt=0;
   S.decoyPool=[];
   S.spawnAt=0;
+  S.beams=[];
+  S.inventory={horloge:0, bombe:0, chercheuse:0};
+  S.slowMoT=0;
+  S.bonusTimer=rand(9000,15000);
   ensureCurrentWord();
 
   document.getElementById("hud-lives-chip").hidden = S.selectedMode!=="agression";
@@ -1631,7 +1873,7 @@ function quitToSetup(){
   setPlayChromeVisible(false);
   hideAllOverlays();
   showOverlay("overlay-setup");
-  renderThemeGrid(); renderModeRow(); renderWeaponRow();
+  renderThemeGrid(); renderModeRow(); renderDifficultyRow(); renderWeaponRow();
 }
 
 function endRound(completed){
@@ -1734,6 +1976,23 @@ function renderModeRow(){
         cd.appendChild(b);
       });
     }
+  });
+}
+
+function renderDifficultyRow(){
+  const row=document.getElementById("difficulty-row");
+  if(row.dataset.built==="1"){
+    [...row.children].forEach(c=>c.classList.toggle("selected", c.dataset.id===S.difficulty));
+    return;
+  }
+  row.dataset.built="1";
+  DIFFICULTIES.forEach(d0=>{
+    const d=document.createElement("div");
+    d.className="mode-card"+(d0.id===S.difficulty?" selected":"");
+    d.dataset.id=d0.id;
+    d.innerHTML="<div class=\"nm\">"+d0.icon+" "+d0.name+"</div><div class=\"desc\">"+d0.desc+"</div>";
+    d.addEventListener("click",()=>{ S.difficulty=d0.id; renderDifficultyRow(); });
+    row.appendChild(d);
   });
 }
 
@@ -1903,6 +2162,7 @@ function init(){
   resizeCanvas();
   renderThemeGrid();
   renderModeRow();
+  renderDifficultyRow();
   renderWeaponRow();
   updateWeaponChip();
   setPlayChromeVisible(false);
