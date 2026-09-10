@@ -600,6 +600,9 @@ canvas#game{
             <div class="section-label">Difficulté</div>
             <div class="mode-row" id="difficulty-row"></div>
 
+            <div class="section-label">Mauvaise cible</div>
+            <div class="mode-row" id="wrong-behavior-row"></div>
+
             <div class="section-label">Arme équipée</div>
             <div class="weapon-row" id="weapon-row"></div>
 
@@ -763,6 +766,12 @@ const DIFFICULTIES = [
   {id:"debutant", name:"Débutant", icon:"🌱", desc:"Le mot à trouver est surligné d'une couleur différente."},
   {id:"avance",   name:"Avancé",   icon:"🎓", desc:"Plus d'indice de couleur : tous les mots se ressemblent, il faut vraiment lire."},
   {id:"expert",   name:"Expert",   icon:"🏆", desc:"Sans couleur, et les mots changent de police et de MAJUSCULE/minuscule."},
+];
+
+const WRONG_BEHAVIORS = [
+  {id:"elimine",        name:"Ça élimine",           icon:"💥", desc:"La mauvaise cible est détruite, mais tu ne perds pas de points."},
+  {id:"n_elimine_pas",  name:"Ça n'élimine pas",     icon:"🛡️", desc:"La mauvaise cible reste affichée, mais tu perds 1 point."},
+  {id:"elimine_malus",  name:"Ça élimine (malus)",   icon:"☠️", desc:"La mauvaise cible est détruite et tu perds la moitié de tes points."},
 ];
 
 const POWERUPS = [
@@ -932,6 +941,7 @@ const S = {
   selectedWeaponId:"revolver",
   unlockedWeapons:["revolver"],
   difficulty:"debutant",
+  wrongBehavior:"n_elimine_pas",
   subject:"lecture",
   mathOps:{addition:true, soustraction:true, multiplication:true, division:true},
   activeSubject:"lecture",
@@ -1503,11 +1513,22 @@ function resolveHit(t){
     spawnPopup(t.x,t.y-10,"+1","#5fd98a");
     advanceWord();
   } else {
-    t.alive=false;
-    S.score=Math.max(0,S.score-1);
     SFX.wrong();
-    spawnBurst(t.x,t.y,"#d9463a",14);
-    spawnPopup(t.x,t.y-10,"-1","#d9463a");
+    if(S.wrongBehavior==="elimine"){
+      t.alive=false;
+      spawnBurst(t.x,t.y,"#d9463a",14);
+      spawnPopup(t.x,t.y-10,"💥","#d9463a");
+    } else if(S.wrongBehavior==="elimine_malus"){
+      t.alive=false;
+      const before=S.score;
+      S.score=Math.floor(S.score/2);
+      spawnBurst(t.x,t.y,"#d9463a",22);
+      spawnPopup(t.x,t.y-10, before>S.score ? "÷2" : "💥","#d9463a");
+    } else { // n_elimine_pas (par défaut) : la cible reste affichée
+      S.score=Math.max(0,S.score-1);
+      spawnBurst(t.x,t.y,"#d9463a",6);
+      spawnPopup(t.x,t.y-10,"-1","#d9463a");
+    }
   }
 }
 
@@ -2254,7 +2275,7 @@ function quitToSetup(){
   setPlayChromeVisible(false);
   hideAllOverlays();
   showOverlay("overlay-setup");
-  renderThemeGrid(); renderModeRow(); renderDifficultyRow(); renderWeaponRow(); renderSubjectRow();
+  renderThemeGrid(); renderModeRow(); renderDifficultyRow(); renderWrongBehaviorRow(); renderWeaponRow(); renderSubjectRow();
 }
 
 function endRound(completed){
@@ -2373,6 +2394,24 @@ function renderDifficultyRow(){
     d.dataset.id=d0.id;
     d.innerHTML="<div class=\"nm\">"+d0.icon+" "+d0.name+"</div><div class=\"desc\">"+d0.desc+"</div>";
     d.addEventListener("click",()=>{ S.difficulty=d0.id; renderDifficultyRow(); });
+    row.appendChild(d);
+  });
+}
+
+function renderWrongBehaviorRow(){
+  const row=document.getElementById("wrong-behavior-row");
+  if(!row) return;
+  if(row.dataset.built==="1"){
+    [...row.children].forEach(c=>c.classList.toggle("selected", c.dataset.id===S.wrongBehavior));
+    return;
+  }
+  row.dataset.built="1";
+  WRONG_BEHAVIORS.forEach(wb=>{
+    const d=document.createElement("div");
+    d.className="mode-card"+(wb.id===S.wrongBehavior?" selected":"");
+    d.dataset.id=wb.id;
+    d.innerHTML="<div class=\"nm\">"+wb.icon+" "+wb.name+"</div><div class=\"desc\">"+wb.desc+"</div>";
+    d.addEventListener("click",()=>{ S.wrongBehavior=wb.id; renderWrongBehaviorRow(); });
     row.appendChild(d);
   });
 }
@@ -2600,6 +2639,7 @@ function init(){
   renderThemeGrid();
   renderModeRow();
   renderDifficultyRow();
+  renderWrongBehaviorRow();
   renderWeaponRow();
   renderSubjectRow();
   updateWeaponChip();
